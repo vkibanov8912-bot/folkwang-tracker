@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Фолькванг - Трекер боссов</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* ===== БАЗОВЫЕ СТИЛИ ===== */
+        :root {
+            --tg-theme-bg-color: #0f172a;
+            --tg-theme-text-color: #f8fafc;
+            --tg-theme-button-color: #3b82f6;
+            --tg-theme-button-text-color: #ffffff;
+            --floor-1: #dc2626;  /* Красный */
+            --floor-2: #f59e0b;  /* Оранжевый */
+            --floor-3: #10b981;  /* Зеленый */
+            --floor-4: #8b5cf6;  /* Фиолетовый */
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* ===== ШАПКА ===== */
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            padding: 16px;
+            text-align: center;
+            border-bottom: 2px solid #334155;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #dc2626, #f59e0b, #10b981, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 4px;
+        }
+        
+        .header-subtitle {
+            font-size: 14px;
+            color: #94a3b8;
+        }
+        
+        /* ===== ВКЛАДКИ ЭТАЖЕЙ ===== */
+        .floors-tabs {
+            display: flex;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 8px 16px;
+            gap: 8px;
+        }
+        
+        .floor-tab {
+            flex: 1;
+            padding: 12px 8px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            background: #334155;
+            color: #cbd5e1;
+        }
+        
+        .floor-tab.active {
+            color: white;
+            border-color: currentColor;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        .floor-tab.floor-1.active { background: var(--floor-1); color: white; }
+        .floor-tab.floor-2.active { background: var(--floor-2); color: white; }
+        .floor-tab.floor-3.active { background: var(--floor-3); color: white; }
+        .floor-tab.floor-4.active { background: var(--floor-4); color: white; }
+        
+        /* ===== КОНТЕНТ ЭТАЖА ===== */
+        .floor-content {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .floor-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .floor-title {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        
+        .floor-1 .floor-title { background: linear-gradient(135deg, var(--floor-1) 0%, #991b1b 100%); }
+        .floor-2 .floor-title { background: linear-gradient(135deg, var(--floor-2) 0%, #d97706 100%); }
+        .floor-3 .floor-title { background: linear-gradient(135deg, var(--floor-3) 0%, #047857 100%); }
+        .floor-4 .floor-title { background: linear-gradient(135deg, var(--floor-4) 0%, #7c3aed 100%); }
+        
+        /* ===== КАРТОЧКИ БОССОВ ===== */
+        .bosses-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .boss-card {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 20px;
+            border: 2px solid #334155;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .boss-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            border-color: #475569;
+        }
+        
+        .boss-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        
+        .boss-name {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        
+        .boss-type {
+            font-size: 14px;
+            color: #94a3b8;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        
+        /* ===== ТАЙМЕРЫ ===== */
+        .timer-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .timer {
+            font-family: 'Courier New', monospace;
+            font-size: 32px;
+            font-weight: 700;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            background: #0f172a;
+            letter-spacing: 2px;
+        }
+        
+        .timer.alive {
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+            border: 2px solid #10b981;
+        }
+        
+        .timer.dead {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+            border: 2px solid #ef4444;
+        }
+        
+        .status {
+            font-size: 14px;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        
+        .status.alive {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .status.dead {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        /* ===== КНОПКИ ===== */
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+        }
+        
+        .btn-primary:active {
+            transform: scale(0.98);
+            opacity: 0.9;
+        }
+        
+        .btn-secondary {
+            background: #334155;
+            color: #cbd5e1;
+        }
+        
+        .btn-back {
+            background: #475569;
+            color: white;
+            margin-top: 20px;
+        }
+        
+        /* ===== ПОДВАЛ ===== */
+        .footer {
+            padding: 16px;
+            background: #1e293b;
+            border-top: 1px solid #334155;
+            text-align: center;
+            font-size: 12px;
+            color: #64748b;
+        }
+        
+        /* ===== МОДАЛЬНОЕ ОКНО ===== */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .modal-content {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            border: 2px solid #475569;
+        }
+        
+        .modal-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .modal-text {
+            color: #94a3b8;
+            margin-bottom: 24px;
+        }
+        
+        /* ===== АДАПТИВНОСТЬ ===== */
+        @media (max-width: 480px) {
+            .floors-tabs {
+                padding: 8px;
+            }
+            
+            .floor-tab {
+                padding: 10px 4px;
+                font-size: 12px;
+            }
+            
+            .timer {
+                font-size: 28px;
+            }
+            
+            .bosses-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* ===== АНИМАЦИИ ===== */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        /* ===== УТИЛИТЫ ===== */
+        .hidden {
+            display: none !important;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .mb-2 { margin-bottom: 8px; }
+        .mb-4 { margin-bottom: 16px; }
+        .mt-4 { margin-top: 16px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ШАПКА -->
+        <div class="header">
+            <h1>⚔️ ФОЛЬКВАНГ</h1>
+            <div class="header-subtitle">Отслеживание респауна боссов • 2 часа</div>
+        </div>
+        
+        <!-- ВКЛАДКИ ЭТАЖЕЙ -->
+        <div class="floors-tabs">
+            <div class="floor-tab floor-1 active" onclick="showFloor(1)">
+                🏰 1 этаж
+            </div>
+            <div class="floor-tab floor-2" onclick="showFloor(2)">
+                🏰 2 этаж
+            </div>
+            <div class="floor-tab floor-3" onclick="showFloor(3)">
+                🏰 3 этаж
+            </div>
+            <div class="floor-tab floor-4" onclick="showFloor(4)">
+                🏰 4 этаж
+            </div>
+        </div>
+        
+        <!-- КОНТЕНТ 1 ЭТАЖА -->
+        <div class="floor-content floor-1 active" id="floor1">
+            <div class="floor-title">🏰 ФОЛЬКВАНГ - 1 ЭТАЖ</div>
+            
+            <div class="bosses-grid">
+                <!-- МАГ -->
+                <div class="boss-card" onclick="showBossDetails('floor1', 'mage')">
+                    <div class="boss-icon">🔮</div>
+                    <div class="boss-name">Темный Маг</div>
+                    <div class="boss-type">Магический урон • AoE</div>
+                    <div class="timer-container">
+                        <div class="timer alive" id="timer-floor1-mage">ЖИВОЙ</div>
+                        <div class="status alive">🟢 МОЖНО АТАКОВАТЬ</div>
+                    </div>
+                </div>
+                
+                <!-- ХИЛ -->
+                <div class="boss-card" onclick="showBossDetails('floor1', 'healer')">
+                    <div class="boss-icon">💖</div>
+                    <div class="boss-name">Жрица Исцеления</div>
+                    <div class="boss-type">Поддержка • Хил</div>
+                    <div class="timer-container">
+                        <div class="timer dead" id="timer-floor1-healer">01:45:30</div>
+                        <div class="status dead">🔴 РЕСПАУН ЧЕРЕЗ</div>
+                    </div>
+                </div>
+                
+                <!-- КОПЕЙЩИК -->
+                <div class="boss-card" onclick="showBossDetails('floor1', 'spearman')">
+                    <div class="boss-icon">🗡️</div>
+                    <div class="boss-name">Копейщик Гвардии</div>
+                    <div class="boss-type">Дальний бой • Пробитие</div>
+                    <div class="timer-container">
+                        <div class="timer alive" id="timer-floor1-spearman">ЖИВОЙ</div>
+                        <div class="status alive">🟢 МОЖНО АТАКОВАТЬ</div>
+                    </div>
+                </div>
+                
+                <!-- БЕРСЕРК -->
+                <div class="boss-card" onclick="showBossDetails('floor1', 'berserk')">
+                    <div class="boss-icon">⚔️</div>
+                    <div class="boss-name">Берсерк Ярости</div>
+                    <div class="boss-type">Ближний бой • Крит</div>
+                    <div class="timer-container">
+                        <div class="timer dead" id="timer-floor1-berserk">00:30:15</div>
+                        <div class="status dead">🔴 РЕСПАУН ЧЕРЕЗ</div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn btn-back" onclick="showAllFloors()">
+                ← Назад ко всем этажам
+            </button>
+        </div>
+        
+        <!-- КОНТЕНТ 2 ЭТАЖА -->
+        <div class="floor-content floor-2" id="floor2">
+            <div class="floor-title">🏰 ФОЛЬКВАНГ - 2 ЭТАЖ</div>
+            
+            <div class="bosses-grid">
+                <!-- МАГ 2 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor2', 'mage')">
+                    <div class="boss-icon">🌀</div>
+                    <div class="boss-name">Архимаг Бездны</div>
+                    <div class="boss-type">Тьма • Контроль</div>
+                    <div class="timer-container">
+                        <div class="timer dead" id="timer-floor2-mage">01:20:45</div>
+                        <div class="status dead">🔴 РЕСПАУН ЧЕРЕЗ</div>
+                    </div>
+                </div>
+                
+                <!-- ХИЛ 2 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor2', 'healer')">
+                    <div class="boss-icon">✨</div>
+                    <div class="boss-name">Целительница Света</div>
+                    <div class="boss-type">Щиты • Баффы</div>
+                    <div class="timer-container">
+                        <div class="timer alive" id="timer-floor2-healer">ЖИВОЙ</div>
+                        <div class="status alive">🟢 МОЖНО АТАКОВАТЬ</div>
+                    </div>
+                </div>
+                
+                <!-- КОПЕЙЩИК 2 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor2', 'spearman')">
+                    <div class="boss-icon">🔱</div>
+                    <div class="boss-name">Мастер Копья</div>
+                    <div class="boss-type">Скорость • Уворот</div>
+                    <div class="timer-container">
+                        <div class="timer dead" id="timer-floor2-spearman">00:45:20</div>
+                        <div class="status dead">🔴 РЕСПАУН ЧЕРЕЗ</div>
+                    </div>
+                </div>
+                
+                <!-- БЕРСЕРК 2 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor2', 'berserk')">
+                    <div class="boss-icon">😡</div>
+                    <div class="boss-name">Разъяренный Берсерк</div>
+                    <div class="boss-type">Ярость • Лайфстил</div>
+                    <div class="timer-container">
+                        <div class="timer alive" id="timer-floor2-berserk">ЖИВОЙ</div>
+                        <div class="status alive">🟢 МОЖНО АТАКОВАТЬ</div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn btn-back" onclick="showAllFloors()">
+                ← Назад ко всем этажам
+            </button>
+        </div>
+        
+        <!-- КОНТЕНТ 3 ЭТАЖА -->
+        <div class="floor-content floor-3" id="floor3">
+            <div class="floor-title">🏰 ФОЛЬКВАНГ - 3 ЭТАЖ</div>
+            
+            <div class="bosses-grid">
+                <!-- МАГ 3 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor3', 'mage')">
+                    <div class="boss-icon">🔥</div>
+                    <div class="boss-name">Повелитель Огня</div>
+                    <div class="boss-type">Огонь • Горение</div>
+                    <div class="timer-container">
+                        <div class="timer alive" id="timer-floor3-mage">ЖИВОЙ</div>
+                        <div class="status alive">🟢 МОЖНО АТАКОВАТЬ</div>
+                    </div>
+                </div>
+                
+                <!-- ХИЛ 3 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor3', 'healer')">
+                    <div class="boss-icon">❄️</div>
+                    <div class="boss-name">Ледяная Жрица</div>
+                    <div class="boss-type">Замедление • Заморозка</div>
+                    <div class="timer-container">
+                        <div class="timer dead" id="timer-floor3-healer">01:55:10</div>
+                        <div class="status dead">🔴 РЕСПАУН ЧЕРЕЗ</div>
+                    </div>
+                </div>
+                
+                <!-- КОПЕЙЩИК 3 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor3', 'spearman')">
+                    <div class="boss-icon">💨</div>
+                    <div class="boss-name">Призрачный Копейщик</div>
+                    <div class="boss-type">Невидимость • Вампиризм</div>
+                    <div class="timer-container">
+                        <div class="timer alive" id="timer-floor3-spearman">ЖИВОЙ</div>
+                        <div class="status alive">🟢 МОЖНО АТАКОВАТЬ</div>
+                    </div>
+                </div>
+                
+                <!-- БЕРСЕРК 3 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor3', 'berserk')">
+                    <div class="boss-icon">💀</div>
+                    <div class="boss-name">Берсерк Смерти</div>
+                    <div class="boss-type">Яд • Кровотечение</div>
+                    <div class="timer-container">
+                        <div class="timer dead" id="timer-floor3-berserk">00:15:40</div>
+                        <div class="status dead">🔴 РЕСПАУН ЧЕРЕЗ</div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn btn-back" onclick="showAllFloors()">
+                ← Назад ко всем этажам
+            </button>
+        </div>
+        
+        <!-- КОНТЕНТ 4 ЭТАЖА -->
+        <div class="floor-content floor-4" id="floor4">
+            <div class="floor-title">🏰 ФОЛЬКВАНГ - 4 ЭТАЖ</div>
+            
+            <div class="bosses-grid">
+                <!-- МАГ 4 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor4', 'mage')">
+                    <div class="boss-icon">⚡</div>
+                    <div class="boss-name">Громовержец</div>
+                    <div class="boss-type">Молния • Стан</div>
+                    <div class="timer-container">
+                        <div class="timer dead" id="timer-floor4-mage">01:10:25</div>
+                        <div class="status dead">🔴 РЕСПАУН ЧЕРЕЗ</div>
+                    </div>
+                </div>
+                
+                <!-- ХИЛ 4 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor4', 'healer')">
+                    <div class="boss-icon">🌿</div>
+                    <div class="boss-name">Друид Природы</div>
+                    <div class="boss-type">Реген • Оковы</div>
+                    <div class="timer-container">
+                        <div class="timer alive" id="timer-floor4-healer">ЖИВОЙ</div>
+                        <div class="status alive">🟢 МОЖНО АТАКОВАТЬ</div>
+                    </div>
+                </div>
+                
+                <!-- КОПЕЙЩИК 4 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor4', 'spearman')">
+                    <div class="boss-icon">🌪️</div>
+                    <div class="boss-name">Вихревой Копейщик</div>
+                    <div class="boss-type">Отбрасывание • Разрыв</div>
+                    <div class="timer-container">
+                        <div class="timer dead" id="timer-floor4-spearman">00:50:55</div>
+                        <div class="status dead">🔴 РЕСПАУН ЧЕРЕЗ</div>
+                    </div>
+                </div>
+                
+                <!-- БЕРСЕРК 4 этаж -->
+                <div class="boss-card" onclick="showBossDetails('floor4', 'berserk')">
+                    <div class="boss-icon">👹</div>
+                    <div class="boss-name">Демон-Берсерк</div>
+                    <div class="boss-type">Страх • Проклятья</div>
+                    <div class="timer-container">
+                        <div class="timer alive" id="timer-floor4-berserk">ЖИВОЙ</div>
+                        <div class="status alive">🟢 МОЖНО АТАКОВАТЬ</div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn btn-back" onclick="showAllFloors()">
+                ← Назад ко всем этажам
+            </button>
+        </div>
+        
+        <!-- ПОДВАЛ -->
+        <div class="footer">
+            <div>Gods of Ymir • Фолькванг • Респаун: 2 часа</div>
+            <div>Последнее обновление: <span id="lastUpdate">сегодня 14:30</span></div>
+        </div>
+    </div>
+    
+    <!-- МОДАЛЬНОЕ ОКНО ДЛЯ ОТМЕТКИ УБИЙСТВА -->
+    <div class="modal" id="bossModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="boss-icon" id="modalBossIcon">⚔️</div>
+                <div class="modal-title" id="modalBossName">Темный Маг</div>
+                <div class="modal-text" id="modalBossLocation">Фолькванг • 1 этаж</div>
+            </div>
+            
+            <div class="timer-container">
+                <div class="timer alive" id="modalTimer">ЖИВОЙ</div>
+                <div class="status alive" id="modalStatus">🟢 МОЖНО АТАКОВАТЬ</div>
+            </div>
+            
+            <div class="modal-text text-center" id="modalDescription">
+                Магический босс с Area of Damage атаками. Слаб к физическому урону.
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn btn-secondary" onclick="closeModal()">
+                    ✕ Отмена
+                </button>
+                <button class="btn btn-primary" onclick="markBossKilled()">
+                    🗡️ Отметить убийство
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP =====
+        const tg = window.Telegram.WebApp;
+        
+        // Расширяем на весь экран
+        tg.expand();
+        
+        // Устанавливаем цвет фона
+        tg.setBackgroundColor('#0f172a');
+        
+        // ===== ДАННЫЕ БОССОВ =====
+        const bossesData = {
+            floor1: {
+                mage: { name: "Темный Маг", type: "Маг", lastKill: null, respawn: 120, icon: "🔮" },
+                healer: { name: "Жрица Исцеления", type: "Хил", lastKill: Date.now() - 15*60*1000, respawn: 120, icon: "💖" },
+                spearman: { name: "Копейщик Гвардии", type: "Копейщик", lastKill: null, respawn: 120, icon: "🗡️" },
+                berserk: { name: "Берсерк Ярости", type: "Берсерк", lastKill: Date.now() - 90*60*1000, respawn: 120, icon: "⚔️" }
+            },
+            floor2: {
+                mage: { name: "Архимаг Бездны", type: "Маг", lastKill: Date.now() - 40*60*1000, respawn: 120, icon: "🌀" },
+                healer: { name: "Целительница Света", type: "Хил", lastKill: null, respawn: 120, icon: "✨" },
+                spearman: { name: "Мастер Копья", type: "Копейщик", lastKill: Date.now() - 75*60*1000, respawn: 120, icon: "🔱" },
+                berserk: { name: "Разъяренный Берсерк", type: "Берсерк", lastKill: null, respawn: 120, icon: "😡" }
+            },
+            floor3: {
+                mage: { name: "Повелитель Огня", type: "Маг", lastKill: null, respawn: 120, icon: "🔥" },
+                healer: { name: "Ледяная Жрица", type: "Хил", lastKill: Date.now() - 25*60*1000, respawn: 120, icon: "❄️" },
+                spearman: { name: "Призрачный Копейщик", type: "Копейщик", lastKill: null, respawn: 120, icon: "💨" },
+                berserk: { name: "Берсерк Смерти", type: "Берсерк", lastKill: Date.now() - 105*60*1000, respawn: 120, icon: "💀" }
+            },
+            floor4: {
+                mage: { name: "Громовержец", type: "Маг", lastKill: Date.now() - 50*60*1000, respawn: 120, icon: "⚡" },
+                healer: { name: "Друид Природы", type: "Хил", lastKill: null, respawn: 120, icon: "🌿" },
+                spearman: { name: "Вихревой Копейщик", type: "Копейщик", lastKill: Date.now() - 70*60*1000, respawn: 120, icon: "🌪️" },
+                berserk: { name: "Демон-Берсерк", type: "Берсерк", lastKill: null, respawn: 120, icon: "👹" }
+            }
+        };
+        
+        // Текущий выбранный босс
+        let currentBoss = null;
+        
+        // ===== ФУНКЦИИ ДЛЯ РАБОТЫ С ЭТАЖАМИ =====
+        function showFloor(floorNumber) {
+            // Скрываем все этажи
+            document.querySelectorAll('.floor-content').forEach(floor => {
+                floor.classList.remove('active');
+            });
+            
+            // Убираем активный класс со всех вкладок
+            document.querySelectorAll('.floor-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Показываем выбранный этаж
+            document.getElementById(`floor${floorNumber}`).classList.add('active');
+            
+            // Активируем вкладку
+            document.querySelector(`.floor-tab.floor-${floorNumber}`).classList.add('active');
+            
+            // Обновляем таймеры для этого этажа
+            updateTimersForFloor(`floor${floorNumber}`);
+            
+            // Вибрация (на мобильных)
+            tg.HapticFeedback.impactOccurred('light');
+        }
+        
+        function showAllFloors() {
+            // Показываем вкладки этажей (они всегда видны в этом дизайне)
+            // Просто показываем первый этаж
+            showFloor(1);
+        }
+        
+        // ===== ФУНКЦИИ ДЛЯ РАБОТЫ С БОССАМИ =====
+        function showBossDetails(floorId, bossType) {
+            const boss = bossesData[floorId][bossType];
+            currentBoss = { floorId, bossType };
+            
+            // Заполняем модальное окно
+            document.getElementById('modalBossIcon').textContent = boss.icon;
+            document.getElementById('modalBossName').textContent = boss.name;
+            document.getElementById('modalBossLocation').textContent = 
+                `Фолькванг • ${floorId.replace('floor', '')} этаж`;
+            
+            // Обновляем таймер в модалке
+            updateBossTimer(floorId, bossType, true);
+            
+            // Показываем модальное окно
+            document.getElementById('bossModal').classList.add('active');
+            
+            // Вибрация
+            tg.HapticFeedback.impactOccurred('medium');
+        }
+        
+        function closeModal() {
+            document.getElementById('bossModal').classList.remove('active');
+            currentBoss = null;
+        }
+        
+        function markBossKilled() {
+            if (!currentBoss) return;
+            
+            const { floorId, bossType } = currentBoss;
+            
+            // Обновляем время убийства
+            bossesData[floorId][bossType].lastKill = Date.now();
+            
+            // Сохраняем в локальное хранилище
+            saveToLocalStorage();
+            
+            // Обновляем таймеры
+            updateBossTimer(floorId, bossType, true);
+            updateTimersForFloor(floorId);
+            
+            // Показываем уведомление
+            tg.showPopup({
+                title: '✅ Убийство отмечено!',
+                message: `${bossesData[floorId][bossType].name} добавлен в список убитых.\nРеспаун через 2 часа.`,
+                buttons: [{ type: 'ok' }]
+            });
+            
+            // Отправляем данные в Telegram бота (если нужно)
+            if (tg.sendData) {
+                tg.sendData(JSON.stringify({
+                    action: 'boss_killed',
+                    floor: floorId,
+                    boss: bossType,
+                    name: bossesData[floorId][bossType].name,
+                    timestamp: new Date().toISOString()
+                }));
+            }
+            
+            // Закрываем модальное окно
+            closeModal();
+            
+            // Сильная вибрация
+            tg.HapticFeedback.impactOccurred('heavy');
+        }
+        
+        // ===== ФУНКЦИИ ДЛЯ РАБОТЫ С ТАЙМЕРАМИ =====
+        function updateBossTimer(floorId, bossType, inModal = false) {
+            const boss = bossesData[floorId][bossType];
+            const timerElement = inModal ? 
+                document.getElementById('modalTimer') : 
+                document.getElementById(`timer-${floorId}-${bossType}`);
+                
+            const statusElement = inModal ?
+                document.getElementById('modalStatus') :
+                document.querySelector(`#timer-${floorId}-${bossType}`).nextElementSibling;
+            
+            if (!boss.lastKill) {
+                // Босс жив
+                timerElement.textContent = "ЖИВОЙ";
+                timerElement.className = inModal ? "timer alive" : "timer alive";
+                statusElement.textContent = "🟢 МОЖНО АТАКОВАТЬ";
+                statusElement.className = inModal ? "status alive" : "status alive";
+            } else {
+                // Рассчитываем оставшееся время
+                const killTime = new Date(boss.lastKill);
+                const respawnTime = new Date(killTime.getTime() + boss.respawn * 60000);
+                const now = new Date();
+                
+                if (now >= respawnTime) {
+                    // Босс уже возродился
+                    timerElement.textContent = "ЖИВОЙ";
+                    timerElement.className = inModal ? "timer alive" : "timer alive";
+                    statusElement.textContent = "🟢 МОЖНО АТАКОВАТЬ";
+                    statusElement.className = inModal ? "status alive" : "status alive";
+                } else {
+                    // Босс мертв, показываем таймер
+                    const diff = respawnTime - now;
+                    const hours = Math.floor(diff / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                    
+                    timerElement.textContent = 
+                        `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    timerElement.className = inModal ? "timer dead" : "timer dead";
+                    statusElement.textContent = "🔴 РЕСПАУН ЧЕРЕЗ";
+                    statusElement.className = inModal ? "status dead" : "status dead";
+                }
+            }
+        }
+        
+        function updateTimersForFloor(floorId) {
+            // Обновляем все таймеры на этаже
+            Object.keys(bossesData[floorId]).forEach(bossType => {
+                updateBossTimer(floorId, bossType, false);
+            });
+        }
+        
+        function updateAllTimers() {
+            // Обновляем все таймеры на всех этажах
+            ['floor1', 'floor2', 'floor3', 'floor4'].forEach(floorId => {
+                updateTimersForFloor(floorId);
+            });
+            
+            // Обновляем время в подвале
+            document.getElementById('lastUpdate').textContent = 
+                new Date().toLocaleTimeString('ru-RU', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+        }
+        
+        // ===== ЛОКАЛЬНОЕ ХРАНИЛИЩЕ =====
+        function saveToLocalStorage() {
+            localStorage.setItem('folkwangBossData', JSON.stringify(bossesData));
+        }
+        
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('folkwangBossData');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                Object.assign(bossesData, parsed);
+            }
+        }
+        
+        // ===== ИНИЦИАЛИЗАЦИЯ =====
+        function initApp() {
+            // Загружаем сохраненные данные
+            loadFromLocalStorage();
+            
+            // Обновляем все таймеры
+            updateAllTimers();
+            
+            // Запускаем автообновление таймеров каждую секунду
+            setInterval(updateAllTimers, 1000);
+            
+            // Настраиваем кнопку "Назад" для Android
+            if (tg.platform === 'android') {
+                tg.BackButton.show();
+                tg.BackButton.onClick(() => {
+                    if (document.getElementById('bossModal').classList.contains('active')) {
+                        closeModal();
+                    } else {
+                        tg.close();
+                    }
+                });
+            }
+            
+            // Адаптируем тему под Telegram
+            if (tg.colorScheme === 'dark') {
+                document.documentElement.style.setProperty('--tg-theme-bg-color', '#0f172a');
+            } else {
+                document.documentElement.style.setProperty('--tg-theme-bg-color', '#f8fafc');
+                document.documentElement.style.setProperty('--tg-theme-text-color', '#1e293b');
+            }
+        }
+        
+        // Запускаем приложение при загрузке
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
